@@ -1,0 +1,133 @@
+# 🧩 Diagram Tambahan — Sprint 2 (System Modeling)
+## Digital Twin Monitoring Ruangan
+
+Dokumen ini melengkapi `01-analisis-sistem.md` dengan tiga diagram tambahan: **Activity Diagram**, **ERD**, dan **DFD Level 1**.
+
+> **Cara pakai di draw.io:** buka app.diagrams.net → menu **Arrange → Insert → Advanced → Mermaid...** → tempel kode diagram → klik **Insert**. Rapikan tata letaknya, lalu **File → Export as → PNG**.
+> Kode yang sama juga langsung tampil sebagai gambar di GitHub (tab Preview).
+
+---
+
+## 1. Activity Diagram (Alur Data Sensor sampai Notifikasi)
+
+```mermaid
+flowchart TD
+    subgraph GEN["Dummy Generator (Python)"]
+        G1([Mulai]) --> G2["Bangkitkan data suhu, kelembapan, cahaya, occupancy"]
+        G2 --> G3["Kirim POST /api/sensor"]
+        G3 --> G4["Tunggu 5 detik"]
+        G4 --> G2
+    end
+
+    subgraph BE["Flask Backend"]
+        B1["Terima data sensor"] --> B2[("Simpan ke sensor_logs")]
+        B2 --> B3{"Melebihi threshold?"}
+        B3 -->|Ya| B4["Set status ALERT"]
+        B3 -->|Tidak| B5["Set status NORMAL"]
+    end
+
+    subgraph UI["Admin (Browser)"]
+        U1([Login]) --> U2["Buka dashboard"]
+        U2 --> U3["Ambil data terbaru GET /api/sensor"]
+        U3 --> U4{"Status ALERT?"}
+        U4 -->|Ya| U5["Tampilkan notifikasi"]
+        U4 -->|Tidak| U6["Tampilkan grafik dan kartu data"]
+        U5 --> U7["Tunggu 5 detik"]
+        U6 --> U7
+        U7 --> U3
+    end
+
+    G3 --> B1
+    B4 -.->|dibaca dashboard| U3
+    B5 -.->|dibaca dashboard| U3
+```
+
+### 🔑 Penjelasan
+- **Dummy Generator** terus membuat data sensor palsu dan mengirimkannya ke backend setiap 5 detik.
+- **Flask Backend** menyimpan setiap data ke database, lalu membandingkannya dengan threshold untuk menentukan status `ALERT` atau `NORMAL`.
+- **Browser Admin** mengambil data terbaru secara berkala. Jika statusnya `ALERT`, dashboard menampilkan notifikasi; jika normal, dashboard menampilkan grafik dan kartu data seperti biasa.
+
+---
+
+## 2. ERD (Struktur Tabel Database)
+
+```mermaid
+erDiagram
+    ROOMS ||--|| THRESHOLDS : "punya"
+    ROOMS ||--o{ SENSOR_LOGS : "mencatat"
+
+    USERS {
+        int id PK
+        string username
+        string password
+        datetime created_at
+    }
+    ROOMS {
+        int id PK
+        string nama_ruangan
+        string lokasi
+        datetime created_at
+    }
+    THRESHOLDS {
+        int id PK
+        int room_id FK, UK
+        float max_suhu
+        float min_kelembapan
+        float max_cahaya
+    }
+    SENSOR_LOGS {
+        int id PK
+        int room_id FK
+        float suhu
+        float kelembapan
+        float cahaya
+        boolean occupancy
+        datetime timestamp
+    }
+```
+
+### 🔑 Penjelasan
+- **ROOMS** adalah tabel induk. Satu ruangan punya tepat satu baris di **THRESHOLDS** (relasi 1:1, dijaga kolom `room_id` yang unik) dan banyak baris di **SENSOR_LOGS** (relasi 1:N).
+- **SENSOR_LOGS** menyimpan `room_id` sebagai foreign key supaya setiap pembacaan sensor jelas milik ruangan yang mana.
+- **USERS** berdiri sendiri karena hanya dipakai untuk autentikasi admin.
+
+---
+
+## 3. DFD Level 1 (Pemecahan Proses dari Context Diagram)
+
+```mermaid
+flowchart LR
+    ADMIN["Admin Ruangan"]
+    GEN["Dummy Generator"]
+
+    P1(("1.0 Autentikasi"))
+    P2(("2.0 Terima dan Simpan Data Sensor"))
+    P3(("3.0 Cek Threshold dan Notifikasi"))
+    P4(("4.0 Tampilkan Dashboard dan Riwayat"))
+    P5(("5.0 Kelola Threshold"))
+
+    D1[("D1 users")]
+    D2[("D2 sensor_logs")]
+    D3[("D3 thresholds")]
+
+    ADMIN -->|username dan password| P1
+    D1 -->|data akun| P1
+    P1 -->|status login| ADMIN
+
+    GEN -->|data sensor| P2
+    P2 -->|log sensor| D2
+
+    D2 -->|data terbaru| P3
+    D3 -->|ambang batas| P3
+    P3 -->|status dan notifikasi| P4
+
+    D2 -->|riwayat| P4
+    P4 -->|dashboard, grafik, notifikasi| ADMIN
+
+    ADMIN -->|ambang batas baru| P5
+    P5 -->|simpan ambang batas| D3
+```
+
+### 🔑 Penjelasan
+- Context Diagram menganggap sistem sebagai **satu proses**. DFD Level 1 membukanya menjadi **lima proses** beserta penyimpanan data (D1–D3) yang disentuh tiap proses.
+- Jika dosen meminta notasi DFD klasik (Yourdon atau Gane-Sarson), bentuk lingkaran dan silinder bisa diganti lewat library shape di draw.io tanpa mengubah alurnya.
