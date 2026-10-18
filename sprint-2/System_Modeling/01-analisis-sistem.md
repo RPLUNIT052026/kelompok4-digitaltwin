@@ -247,3 +247,27 @@ classDiagram
 **Sprint 2 — System Modeling**  
 **Digital Twin Monitoring Ruangan**  
 **Universitas Samudra — Informatika**
+---
+
+## 5. State Diagram (Perubahan Perilaku Sistem)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Waiting : Sistem dinyalakan
+    
+    Waiting --> Monitoring : Admin Login
+    Monitoring --> Normal : Data diterima & threshold OK
+    Monitoring --> Alert : Data melebihi threshold
+    
+    Normal --> Monitoring : Update grafik real-time
+    Alert --> Monitoring : User acknowledge (klik OK)
+    Alert --> Normal : Suhu kembali normal
+    
+    Monitoring --> Waiting : Admin Logout
+    Waiting --> [*] : Sistem dimatikan
+```
+
+### 🔑 Penjelasan & Cara Kerja
+Diagram ini menunjukkan transisi status sistem. Saat sistem menyala, ia berada di status `Waiting`. Saat Admin login, ia masuk ke `Monitoring`. Jika data dari generator melebihi threshold, status berubah menjadi `Alert` (memunculkan notifikasi), dan kembali ke `Normal` jika kondisi sudah membaik.
+
+---
