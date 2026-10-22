@@ -1,6 +1,6 @@
 # 📊 Dokumentasi Perancangan Sistem — Digital Twin Monitoring Ruangan
 
-Dokumentasi ini merinci pemodelan sistem fungsional dan struktural dari platform **Digital Twin Monitoring Ruangan** yang dibangun berdasarkan pendekatan *Object-Oriented Analysis and Design (OOAD)*.
+Dokumentasi ini merinci pemodelan sistem fungsional dan struktural berdasarkan **Product Backlog (Sprint 1)**. Sistem ini dirancang *Zero Budget* (tanpa biaya hardware) menggunakan simulasi data.
 
 ---
 
@@ -11,18 +11,15 @@ graph TB
     ADMIN[Admin Ruangan]
     DUMMY[Dummy Generator Python]
     DB[(Database SQLite)]
-    SENSOR[Sensor ESP32 - Future]
     
     SISTEM((Sistem Digital Twin<br/>Monitoring Ruangan))
     
-    ADMIN -->|Login, Lihat Data| SISTEM
-    SISTEM -->|Tampilkan Dashboard| ADMIN
+    ADMIN -->|Login, Kontrol ON/OFF, Lihat Data| SISTEM
+    SISTEM -->|Tampilkan Dashboard, Riwayat, Notifikasi| ADMIN
     
-    DUMMY -->|Kirim Data Sensor| SISTEM
+    DUMMY -->|Kirim Data (Suhu, Kelembapan, Occupancy)| SISTEM
     SISTEM -->|Simpan Log| DB
     DB -->|Ambil Riwayat| SISTEM
-    
-    SENSOR -.->|Future| SISTEM
     
     style SISTEM fill:#3498db,color:#fff
     style ADMIN fill:#e74c3c,color:#fff
@@ -31,17 +28,9 @@ graph TB
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
-
-Diagram ini memandang sistem **Digital Twin Monitoring Ruangan** sebagai satu kesatuan proses tunggal yang berinteraksi dengan entitas luar:
-
-- **Admin → Sistem:** Mengirimkan data login, meminta data sensor, dan melihat riwayat. Sistem membalas dengan menampilkan dashboard, grafik, dan notifikasi.
-- **Dummy Generator → Sistem:** Mengirimkan data sensor (suhu, kelembapan, cahaya) setiap 5 detik sebagai simulasi.
-- **Database → Sistem:** Menyimpan log sensor dan melayani permintaan riwayat data.
-- **Sensor ESP32 (Future):** Rencana integrasi hardware asli pada pengembangan berikutnya.
-
-### 🎯 Batas Sistem
-- **Termasuk:** Login, dashboard, riwayat, threshold, notifikasi
-- **Tidak Termasuk:** Hardware sensor asli, kontrol perangkat fisik, multi-user kompleks
+- **Admin** berinteraksi untuk login, menyalakan/mematikan sistem (On/Off), dan melihat data.
+- **Dummy Generator** mensimulasikan pembacaan sensor (Suhu, Kelembapan, Occupancy) tanpa perlu hardware fisik.
+- **Database SQLite** menyimpan histori data untuk ditampilkan di grafik.
 
 ---
 
@@ -53,11 +42,11 @@ graph LR
     
     subgraph SISTEM[Sistem Digital Twin Monitoring Ruangan]
         UC1([Login])
-        UC2([Lihat Dashboard])
-        UC3([Lihat Riwayat])
-        UC4([Atur Threshold])
-        UC5([Terima Notifikasi])
-        UC6([Logout])
+        UC2([Kontrol Sistem ON/OFF])
+        UC3([Lihat Dashboard Real-time])
+        UC4([Lihat Riwayat Data])
+        UC5([Atur Threshold])
+        UC6([Terima Notifikasi])
     end
     
     ADMIN --> UC1
@@ -67,32 +56,20 @@ graph LR
     ADMIN --> UC5
     ADMIN --> UC6
     
-    UC1 -.->|include| UC2
-    UC2 -.->|include| UC5
+    UC2 -.->|include| UC3
+    UC3 -.->|include| UC6
     
     style ADMIN fill:#e74c3c,color:#fff
     style SISTEM fill:#ecf0f1
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
-
-- **Admin:** Memiliki akses penuh untuk login, melihat dashboard real-time, melihat riwayat data, mengatur ambang batas, dan menerima notifikasi.
-- **Relasi Khusus (`<<include>>`):** Proses *Lihat Dashboard* wajib memicu proses *Terima Notifikasi* agar peringatan kondisi abnormal dapat ditampilkan.
-
-### 📋 Detail Use Case
-
-| ID | Use Case | Deskripsi | Prioritas |
-|----|----------|-----------|-----------|
-| UC-01 | Login | Masuk dengan username & password | Tinggi |
-| UC-02 | Lihat Dashboard | Melihat kondisi ruangan real-time | Tinggi |
-| UC-03 | Lihat Riwayat | Melihat log historis data sensor | Sedang |
-| UC-04 | Atur Threshold | Mengubah ambang batas suhu/kelembapan | Sedang |
-| UC-05 | Terima Notifikasi | Mendapat alert jika kondisi abnormal | Tinggi |
-| UC-06 | Logout | Keluar dari sistem | Rendah |
+- **UC-02 Kontrol Sistem ON/OFF:** Fitur tambahan untuk memulai atau menghentikan simulasi data sensor.
+- **UC-03 & UC-06:** Saat dashboard dinyalakan, admin melihat data Suhu, Kelembapan, dan Occupancy (Sesuai Sprint 1). Jika melewati threshold, notifikasi muncul.
 
 ---
 
-## 3. Sequence Diagram (Alur Proses: Admin Melihat Dashboard)
+## 3. Sequence Diagram (Alur Proses: Admin Menyalakan Sistem & Melihat Dashboard)
 
 ```mermaid
 sequenceDiagram
@@ -102,52 +79,31 @@ sequenceDiagram
     participant G as Dummy Generator
     participant D as Database
     
-    Admin->>B: Buka /dashboard
-    B->>F: GET /dashboard
-    F-->>B: HTML Dashboard
+    Admin->>B: Klik Tombol "SISTEM ON"
+    B->>F: POST /api/system/toggle (status: ON)
+    F-->>B: Sistem Aktif
     
-    loop Setiap 5 detik
-        B->>F: GET /api/sensor
-        F->>G: Minta data sensor
-        G-->>F: suhu, kelembapan, cahaya
+    loop Setiap 5 detik (Saat ON)
+        G->>F: POST /api/sensor (Suhu, Kelembapan, Occupancy)
         F->>D: INSERT INTO sensor_logs
-        F->>F: Cek threshold
+        F->>F: Cek Threshold
         
-        alt Suhu > 30°C
-            F-->>B: JSON + notifikasi
+        alt Suhu/Kondisi Tidak Ideal
+            F-->>B: JSON + Notifikasi Alert
         else Normal
-            F-->>B: JSON data
+            F-->>B: JSON data (Suhu, Kelembapan, Occupancy)
         end
         
-        B-->>Admin: Render grafik & card
+        B-->>Admin: Update Grafik & Card Dashboard
     end
     
-    Admin->>B: Klik Logout
-    B->>F: GET /
-    F-->>B: Halaman Login
+    Admin->>B: Klik Tombol "SISTEM OFF"
+    B->>F: POST /api/system/toggle (status: OFF)
+    F-->>B: Sistem Berhenti (Generator Stop)
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
-
-- **Admin → Browser:** Membuka halaman dashboard.
-- **Browser → Flask:** Meminta HTML dashboard.
-- **Loop setiap 5 detik:** Browser meminta data sensor terbaru.
-- **Flask → Generator:** Mengambil data suhu, kelembapan, cahaya dari simulasi.
-- **Flask → Database:** Menyimpan log sensor.
-- **Flask → Flask:** Cek threshold.
-- **Kondisi (alt):**
-  - Jika suhu > 30°C → kirim notifikasi merah
-  - Jika normal → kirim data grafik
-- **Logout:** Admin keluar, browser kembali ke halaman login.
-
-### 📋 Skenario
-
-| Aspek | Keterangan |
-|-------|-----------|
-| Nama | Melihat Dashboard Real-time |
-| Aktor | Admin |
-| Precondition | Admin sudah login |
-| Postcondition | Data sensor tampil di dashboard |
+Alur ini menunjukkan tombol ON memicu sistem untuk menerima data dari Dummy Generator secara berkala. Jika tombol OFF diklik, aliran data berhenti.
 
 ---
 
@@ -159,34 +115,33 @@ classDiagram
         -int id
         -string username
         -string password
-        -datetime created_at
         +login()
         +logout()
+    }
+    
+    class SystemController {
+        -bool is_active
+        +turnOn()
+        +turnOff()
+        +getStatus()
     }
     
     class Room {
         -int id
         -string nama_ruangan
         -string lokasi
-        -datetime created_at
-        +getData()
-        +updateRoom()
     }
     
     class Threshold {
-        -int id
         -float max_suhu
         -float min_kelembapan
-        -float max_cahaya
         +cekThreshold()
-        +updateThreshold()
     }
     
     class SensorLog {
         -int id
         -float suhu
         -float kelembapan
-        -float cahaya
         -bool occupancy
         -datetime timestamp
         +simpan()
@@ -196,57 +151,22 @@ classDiagram
     class Dashboard {
         +tampilSuhu()
         +tampilKelembapan()
+        +tampilOccupancy()
         +tampilGrafik()
-        +tampilNotifikasi()
     }
     
+    User "1" --> "1" SystemController : mengontrol
+    SystemController "1" --> "1" SensorLog : mengizinkan data masuk
     Room "1" --> "1" Threshold : punya
     Room "1" --> "N" SensorLog : mencatat
-    User "1" --> "N" SensorLog : memantau
     Dashboard ..> SensorLog : baca
-    Dashboard ..> Threshold : cek
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
+- **SystemController:** Class baru untuk mengatur status ON/OFF website.
+- **SensorLog:** Mencatat 3 variabel utama dari Sprint 1: `suhu`, `kelembapan`, dan `occupancy` (bukan cuma suhu).
+- **Dashboard:** Menampilkan ketiga variabel tersebut.
 
-- **User:** Merepresentasikan admin sistem dengan atribut login dan operasi autentikasi.
-- **Room:** Merepresentasikan ruangan yang dimonitor, memiliki data lokasi dan operasi pengambilan data.
-- **Threshold:** Menyimpan ambang batas kondisi ideal ruangan (suhu, kelembapan, cahaya).
-- **SensorLog:** Mencatat semua data sensor yang masuk beserta timestamp.
-- **Dashboard:** Class antarmuka yang menampilkan data ke pengguna.
-
-### 📋 Relasi Antar Class
-
-| Relasi | Tipe | Multiplicity | Keterangan |
-|--------|------|--------------|-----------|
-| Room → Threshold | Composition | 1 : 1 | 1 ruangan punya 1 threshold |
-| Room → SensorLog | Aggregation | 1 : N | 1 ruangan punya banyak log |
-| User → SensorLog | Association | 1 : N | 1 user memantau banyak log |
-| Dashboard → SensorLog | Dependency | - | Dashboard membaca data log |
-| Dashboard → Threshold | Dependency | - | Dashboard cek ambang batas |
-
-### 🔣 Simbol Multiplicity
-
-| Simbol | Arti |
-|--------|------|
-| `1` | Tepat satu |
-| `0..1` | Nol atau satu |
-| `1..*` | Satu atau lebih |
-| `*` | Nol atau lebih |
-
----
-
-## 📚 Referensi
-
-1. Sommerville, I. (2016). *Software Engineering* (10th ed.). Chapter 5: System Modeling. Pearson.
-2. OMG UML Specification 2.5.1. https://www.omg.org/spec/UML/
-3. Pressman, R. S. (2001). *Software Engineering: A Practitioner's Approach* (5th ed.). McGraw-Hill.
-
----
-
-**Sprint 2 — System Modeling**  
-**Digital Twin Monitoring Ruangan**  
-**Universitas Samudra — Informatika**
 ---
 
 ## 5. State Diagram (Perubahan Perilaku Sistem)
@@ -255,19 +175,40 @@ classDiagram
 stateDiagram-v2
     [*] --> Waiting : Sistem dinyalakan
     
-    Waiting --> Monitoring : Admin Login
-    Monitoring --> Normal : Data diterima & threshold OK
-    Monitoring --> Alert : Data melebihi threshold
+    Waiting --> Monitoring : Admin klik "ON" (SystemController)
+    Monitoring --> Normal : Data diterima (Suhu, Kelembapan, Occupancy OK)
+    Monitoring --> Alert : Data melewati threshold
     
-    Normal --> Monitoring : Update grafik real-time
-    Alert --> Monitoring : User acknowledge (klik OK)
-    Alert --> Normal : Suhu kembali normal
+    Normal --> Monitoring : Update dashboard
+    Alert --> Monitoring : User acknowledge
+    Alert --> Normal : Kondisi kembali normal
     
-    Monitoring --> Waiting : Admin Logout
+    Monitoring --> Waiting : Admin klik "OFF" (SystemController)
     Waiting --> [*] : Sistem dimatikan
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
-Diagram ini menunjukkan transisi status sistem. Saat sistem menyala, ia berada di status `Waiting`. Saat Admin login, ia masuk ke `Monitoring`. Jika data dari generator melebihi threshold, status berubah menjadi `Alert` (memunculkan notifikasi), dan kembali ke `Normal` jika kondisi sudah membaik.
+Sistem memiliki state `Waiting` (menunggu di-ON-kan). Saat tombol ON ditekan, ia masuk ke `Monitoring`. Dari sana ia bisa berubah ke `Normal` atau `Alert` tergantung data sensor (suhu/kelembapan).
 
 ---
+
+## 6. Framework & Tech Stack (Zero Budget)
+
+Sesuai kesepakatan, proyek ini **tidak memerlukan biaya sepeser pun (Rp 0)**.
+
+| Komponen | Teknologi | Biaya |
+|----------|-----------|-------|
+| Backend | Python (Flask) | Gratis |
+| Database | SQLite | Gratis |
+| Frontend | HTML, Tailwind CSS (CDN), Chart.js | Gratis |
+| Simulasi Data | Python `random` & `time` | Gratis |
+| Hosting | Localhost / GitHub Pages / Render | Gratis |
+
+---
+
+## 7. Activity Diagram (Alur Sistem)
+
+![Activity Diagram](./02-activity-diagram.drawio.png)
+
+### 🔑 Penjelasan & Cara Kerja
+*(Gambar di atas adalah Activity Diagram buatan temanmu. Pastikan dia merevisi gambarnya agar menambahkan kotak "Cek Status ON/OFF" sebelum mengambil data, serta memunculkan variabel Kelembapan dan Occupancy).*
