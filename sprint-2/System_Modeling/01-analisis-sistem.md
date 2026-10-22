@@ -17,7 +17,7 @@ graph TB
     ADMIN -->|Login, Kontrol ON/OFF, Lihat Data| SISTEM
     SISTEM -->|Tampilkan Dashboard, Riwayat, Notifikasi| ADMIN
     
-    DUMMY -->|Kirim Data (Suhu, Kelembapan, Occupancy)| SISTEM
+    DUMMY -->|Kirim Data Suhu, Kelembapan, Occupancy| SISTEM
     SISTEM -->|Simpan Log| DB
     DB -->|Ambil Riwayat| SISTEM
     
@@ -79,27 +79,27 @@ sequenceDiagram
     participant G as Dummy Generator
     participant D as Database
     
-    Admin->>B: Klik Tombol "SISTEM ON"
-    B->>F: POST /api/system/toggle (status: ON)
+    Admin->>B: Klik Tombol SISTEM ON
+    B->>F: POST /api/system/toggle - status ON
     F-->>B: Sistem Aktif
     
-    loop Setiap 5 detik (Saat ON)
-        G->>F: POST /api/sensor (Suhu, Kelembapan, Occupancy)
+    loop Setiap 5 detik saat ON
+        G->>F: POST /api/sensor - Suhu, Kelembapan, Occupancy
         F->>D: INSERT INTO sensor_logs
         F->>F: Cek Threshold
         
-        alt Suhu/Kondisi Tidak Ideal
+        alt Suhu atau Kondisi Tidak Ideal
             F-->>B: JSON + Notifikasi Alert
         else Normal
-            F-->>B: JSON data (Suhu, Kelembapan, Occupancy)
+            F-->>B: JSON data Suhu, Kelembapan, Occupancy
         end
         
-        B-->>Admin: Update Grafik & Card Dashboard
+        B-->>Admin: Update Grafik and Card Dashboard
     end
     
-    Admin->>B: Klik Tombol "SISTEM OFF"
-    B->>F: POST /api/system/toggle (status: OFF)
-    F-->>B: Sistem Berhenti (Generator Stop)
+    Admin->>B: Klik Tombol SISTEM OFF
+    B->>F: POST /api/system/toggle - status OFF
+    F-->>B: Sistem Berhenti
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
@@ -156,7 +156,7 @@ classDiagram
     }
     
     User "1" --> "1" SystemController : mengontrol
-    SystemController "1" --> "1" SensorLog : mengizinkan data masuk
+    SystemController "1" --> "1" SensorLog : mengizinkan data
     Room "1" --> "1" Threshold : punya
     Room "1" --> "N" SensorLog : mencatat
     Dashboard ..> SensorLog : baca
@@ -164,7 +164,7 @@ classDiagram
 
 ### 🔑 Penjelasan & Cara Kerja
 - **SystemController:** Class baru untuk mengatur status ON/OFF website.
-- **SensorLog:** Mencatat 3 variabel utama dari Sprint 1: `suhu`, `kelembapan`, dan `occupancy` (bukan cuma suhu).
+- **SensorLog:** Mencatat 3 variabel utama dari Sprint 1: `suhu`, `kelembapan`, dan `occupancy`.
 - **Dashboard:** Menampilkan ketiga variabel tersebut.
 
 ---
@@ -175,20 +175,20 @@ classDiagram
 stateDiagram-v2
     [*] --> Waiting : Sistem dinyalakan
     
-    Waiting --> Monitoring : Admin klik "ON" (SystemController)
-    Monitoring --> Normal : Data diterima (Suhu, Kelembapan, Occupancy OK)
+    Waiting --> Monitoring : Admin klik ON
+    Monitoring --> Normal : Data diterima - Suhu dan Kelembapan OK
     Monitoring --> Alert : Data melewati threshold
     
     Normal --> Monitoring : Update dashboard
     Alert --> Monitoring : User acknowledge
     Alert --> Normal : Kondisi kembali normal
     
-    Monitoring --> Waiting : Admin klik "OFF" (SystemController)
+    Monitoring --> Waiting : Admin klik OFF
     Waiting --> [*] : Sistem dimatikan
 ```
 
 ### 🔑 Penjelasan & Cara Kerja
-Sistem memiliki state `Waiting` (menunggu di-ON-kan). Saat tombol ON ditekan, ia masuk ke `Monitoring`. Dari sana ia bisa berubah ke `Normal` atau `Alert` tergantung data sensor (suhu/kelembapan).
+Sistem memiliki state `Waiting` saat menunggu di-ON-kan. Saat tombol ON ditekan, ia masuk ke `Monitoring`. Dari sana ia bisa berubah ke `Normal` atau `Alert` tergantung data sensor.
 
 ---
 
@@ -203,4 +203,3 @@ Sesuai kesepakatan, proyek ini **tidak memerlukan biaya sepeser pun (Rp 0)**.
 | Frontend | HTML, Tailwind CSS (CDN), Chart.js | Gratis |
 | Simulasi Data | Python `random` & `time` | Gratis |
 | Hosting | Localhost / GitHub Pages / Render | Gratis |
-
