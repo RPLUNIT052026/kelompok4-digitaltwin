@@ -204,11 +204,3 @@ Sesuai kesepakatan, proyek ini **tidak memerlukan biaya sepeser pun (Rp 0)**.
 | Simulasi Data | Python `random` & `time` | Gratis |
 | Hosting | Localhost / GitHub Pages / Render | Gratis |
 
----
-
-## 7. Activity Diagram (Alur Sistem)
-
-![Activity Diagram](./02-activity-diagram.drawio.png)
-
-### 🔑 Penjelasan & Cara Kerja
-*(Gambar di atas adalah Activity Diagram buatan temanmu. Pastikan dia merevisi gambarnya agar menambahkan kotak "Cek Status ON/OFF" sebelum mengambil data, serta memunculkan variabel Kelembapan dan Occupancy).*
