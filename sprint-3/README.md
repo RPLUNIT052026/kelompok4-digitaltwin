@@ -1,4 +1,4 @@
-# Digital Twin Room v7.3 — Multi-Room Closed-Loop Smart Lab
+# Digital Twin Room  — Multi-Room Closed-Loop Smart Lab
 
 Sistem pemantauan dan kendali kenyamanan ruangan berbasis **Digital Twin** (Flask + SQLite WAL) dengan ilustrasi gradasi arsitektural adaptif per kategori & kondisi termal ruangan.
 
