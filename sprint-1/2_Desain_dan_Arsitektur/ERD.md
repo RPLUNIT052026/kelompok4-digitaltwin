@@ -1,10 +1,7 @@
-# 🗄️ ENTITY RELATIONSHIP DIAGRAM (ERD) — Digital Twin
+# ENTITY RELATIONSHIP DIAGRAM (ERD)
+## Digital Twin Monitoring Ruangan (Sprint 3 Implementation)
 
-Dokumentasi ini memetakan struktur database SQLite yang diimplementasikan pada Sprint 3. Penamaan atribut menggunakan *snake_case* dan disesuaikan secara presisi dengan file `schema.sql`.
-
----
-
-## 📐 A. Diagram ERD
+## 1. Diagram ERD (Mermaid)
 
 ```mermaid
 erDiagram
@@ -29,10 +26,11 @@ erDiagram
         int auto_cooling
         int ac_state
         int alert_spike
+        datetime created_at
     }
     
     THRESHOLDS {
-        int room_id PK,FK
+        int room_id PK, FK
         float temp_on
         float temp_off
         float temp_alert
@@ -47,9 +45,9 @@ erDiagram
         int occupancy
         int ac_state
         string status
-        string source
+        string source "SIMULATOR / ESP32"
         datetime recorded_at
     }
     
-    ROOMS ||--o{ SENSOR_LOGS : "mencatat"
-    ROOMS ||--|| THRESHOLDS : "memiliki batas"
+    ROOMS ||--o{ SENSOR_LOGS : "memiliki log"
+    ROOMS ||--|| THRESHOLDS : "memiliki pengaturan"
