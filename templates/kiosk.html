@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mode Kiosk Ruangan — Digital Twin Room v7.3</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div id="kiosk-brand-slot"></div>
+
+      <div class="topbar-controls">
+        <div class="room-switcher-wrap">
+          <span id="kiosk-switcher-emblem"></span>
+          <select id="kiosk-room-select" class="room-switcher-select" onchange="changeKioskRoom(this.value)">
+            {% for r in rooms %}
+              <option value="{{ r.slug }}" data-name="{{ r.name }}" data-theme="{{ r.theme }}" {% if r.slug == selected_slug %}selected{% endif %}>
+                {{ r.name }} ({{ r.node_id }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="kiosk-clock" id="kiosk-clock">--:--:--</div>
+        <a href="/login" class="btn-topbar">Portal Login →</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="kiosk-page">
+    <section class="kiosk-main-grid">
+      <div class="panel-card kiosk-room-card" id="kiosk-room-card" data-status="OPTIMAL" style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div id="kiosk-gradient-art"></div>
+        <div>
+          <div style="display:flex; align-items:center; gap:16px; margin-bottom:14px;">
+            <div id="kiosk-main-emblem"></div>
+            <div>
+              <span class="node-tag" id="kiosk-node">NODE-01</span>
+              <h1 style="font-size:30px; font-weight:800; margin-top:4px;" id="kiosk-name">Memuat...</h1>
+              <p style="color:#526963; font-size:14px;" id="kiosk-loc">-</p>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;">
+            <span class="ac-pill" id="kiosk-ac-pill" style="font-size:13px; padding:7px 15px;">
+              <span class="ac-dot"></span>
+              <span id="kiosk-ac-text">AC: STANDBY</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="kiosk-kpi-stack">
+          <div class="kiosk-metric-box">
+            <small>SUHU SAAT INI</small>
+            <div class="big-num" id="kiosk-temp">--.-°C</div>
+          </div>
+          <div class="kiosk-metric-box">
+            <small>KELEMBAPAN</small>
+            <div class="big-num" id="kiosk-hum">--%</div>
+          </div>
+          <div class="kiosk-metric-box">
+            <small>OKUPANSI RUANGAN</small>
+            <div class="big-num" id="kiosk-occ">-- / --</div>
+          </div>
+          <div class="kiosk-metric-box">
+            <small>KONDISI RUANGAN</small>
+            <div class="big-num" style="font-size:26px; padding-top:8px;" id="kiosk-status">OPTIMAL</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-card" style="display:flex; flex-direction:column;">
+        <div class="panel-header">
+          <div>
+            <h3>Denah Arsitektural &amp; Aktuator Spasial</h3>
+            <p id="kiosk-updated">Sinkronisasi real-time</p>
+          </div>
+          <span class="scale-badge">SKALA 1:50</span>
+        </div>
+        <div class="twin-viewport" id="kiosk-twin-viewport" style="flex:1;"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/room-emblems.js') }}"></script>
+  <script>
+    document.getElementById("kiosk-brand-slot").innerHTML = renderBrandLogo("dark");
+    let kioskSlug = "{{ selected_slug }}";
+    let renderedKioskArtKey = "";
+
+    function updateClock() {
+      document.getElementById("kiosk-clock").textContent = new Date().toLocaleTimeString("id-ID", { hour12: false });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    function changeKioskRoom(slug) {
+      kioskSlug = slug;
+      renderedKioskArtKey = "";
+      const url = new URL(window.location.href);
+      url.searchParams.set("room", slug);
+      window.history.replaceState({}, "", url);
+      refreshKiosk();
+    }
+
+    async function refreshKiosk() {
+      if (!kioskSlug) return;
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(kioskSlug)}/telemetry`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const r = data.room;
+        const latest = data.latest;
+
+        const kCard = document.getElementById("kiosk-room-card");
+        if (kCard) kCard.setAttribute("data-status", latest.status || "OPTIMAL");
+
+        const artKey = `${r.slug}_${r.theme}_${latest.status}`;
+        if (renderedKioskArtKey !== artKey) {
+          document.getElementById("kiosk-gradient-art").outerHTML =
+            renderRoomGradientIllustration(r.name, r.theme, "kiosk_card", latest.status).replace(
+              '<div class="room-card-backdrop"',
+              '<div id="kiosk-gradient-art" class="room-card-backdrop"'
+            );
+          renderedKioskArtKey = artKey;
+        }
+
+        document.getElementById("kiosk-switcher-emblem").innerHTML = renderRoomEmblem(r.name, r.theme, "room-emblem-box--topbar");
+        document.getElementById("kiosk-main-emblem").innerHTML = renderRoomEmblem(r.name, r.theme, "room-emblem-box--lg");
+        document.getElementById("kiosk-node").textContent = r.node_id;
+        document.getElementById("kiosk-name").textContent = r.name;
+        document.getElementById("kiosk-loc").textContent = r.location;
+        document.getElementById("kiosk-temp").textContent = `${Number(latest.temperature).toFixed(1)}°C`;
+        document.getElementById("kiosk-hum").textContent = `${Number(latest.humidity).toFixed(0)}%`;
+        document.getElementById("kiosk-occ").textContent = `${latest.occupancy}/${r.capacity}`;
+        document.getElementById("kiosk-status").textContent = latest.status;
+        document.getElementById("kiosk-updated").textContent = `Pembaruan terakhir: ${(latest.recorded_at || "").slice(-8)}`;
+
+        const acPill = document.getElementById("kiosk-ac-pill");
+        const isCooling = Number(r.ac_state) === 1;
+        acPill.classList.toggle("active", isCooling);
+        document.getElementById("kiosk-ac-text").textContent = isCooling ? "AC: COOLING AKTIF" : "AC: STANDBY (AUTO)";
+
+        renderArchitecturalTwin(document.getElementById("kiosk-twin-viewport"), r, latest);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    refreshKiosk();
+    setInterval(refreshKiosk, 3000);
+  </script>
+</body>
+</html>

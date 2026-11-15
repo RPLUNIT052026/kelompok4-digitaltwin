@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Digital Twin Room v7.3</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="/dashboard" id="dash-brand-slot" style="text-decoration:none;"></a>
+
+      <div class="topbar-controls">
+        <div class="room-switcher-wrap" title="Pilih ruangan aktif">
+          <span id="switcher-emblem-slot"></span>
+          <select id="room-switcher" class="room-switcher-select" onchange="switchRoom(this.value)">
+            {% for r in rooms %}
+              <option value="{{ r.slug }}" data-name="{{ r.name }}" data-theme="{{ r.theme }}" {% if r.slug == selected_slug %}selected{% endif %}>
+                {{ r.name }} ({{ r.node_id }})
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        {% if user.role == 'admin' %}
+          <button type="button" class="btn-topbar btn-topbar-mint" onclick="openRoomModal()">+ Tambah / Kelola Ruangan</button>
+        {% endif %}
+
+        <a id="kiosk-nav-btn" href="/kiosk?room={{ selected_slug }}" target="_blank" class="btn-topbar">Mode Kiosk ↗</a>
+        <span class="role-badge {{ user.role }}">{{ user.role }}</span>
+        <a href="{{ url_for('logout') }}" class="btn-topbar">Keluar</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="room-header-card" id="room-header-card" data-status="OPTIMAL">
+      <!-- Static Gradient Room Illustration (Always Visible, No Hover Reaction) -->
+      <div id="header-gradient-art"></div>
+
+      <div class="room-header-top">
+        <div class="room-title-group">
+          <div id="header-room-emblem"></div>
+          <div>
+            <div class="room-title-row">
+              <h1 id="room-title">Memuat Ruangan...</h1>
+              <span class="node-tag" id="room-node-tag">NODE-01</span>
+              <span class="ac-pill" id="room-ac-pill">
+                <span class="ac-dot"></span>
+                <span id="room-ac-text">AC: STANDBY (AUTO)</span>
+              </span>
+            </div>
+            <div class="room-meta-line">
+              <span id="room-location">-</span>
+              <span>&bull;</span>
+              <span>Pembaruan terakhir: <code id="room-last-update">--:--:--</code></span>
+              <span>&bull;</span>
+              <span>Sumber: <code id="room-source">SIMULATOR</code></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="room-actions-bar">
+        {% if user.role == 'admin' %}
+          <div class="admin-action-buttons">
+            <button type="button" id="btn-auto-ac" class="btn btn-outline-dark active" onclick="toggleAutoCooling()">
+              Auto-AC: Aktif
+            </button>
+            <button type="button" class="btn btn-alert-soft" onclick="triggerAlertTest()">
+              ⚠️ Uji Peringatan
+            </button>
+            <a id="btn-export-csv" href="/api/rooms/{{ selected_slug }}/export.csv" class="btn">
+              Unduh CSV
+            </a>
+          </div>
+
+          <div class="toggle-pill-card">
+            <div class="toggle-pill-labels">
+              <small>Akuisisi Sensor</small>
+              <strong id="acq-status-label">Aktif (ON)</strong>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="acq-toggle" checked onchange="toggleAcquisition(this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+        {% else %}
+          <div style="font-size:13px; color:#526963;">
+            Mode Pemantauan <strong>Viewer (Read-Only)</strong> — Pilih ruangan di menu atas untuk memantau kondisi tiap lab secara langsung.
+          </div>
+          <span class="status-pill OPTIMAL" id="viewer-status-pill">OPTIMAL</span>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label"><span>SUHU RUANGAN</span><span>°C</span></div>
+        <div class="kpi-value" id="kpi-temp">--.-°C</div>
+        <div class="kpi-sub" id="kpi-temp-sub">Target nyaman: 23.5°C – 26.5°C</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label"><span>KELEMBAPAN RELATIF</span><span>% RH</span></div>
+        <div class="kpi-value" id="kpi-hum">--%</div>
+        <div class="kpi-sub">Batas ideal kelembapan &le; 75%</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label"><span>OKUPANSI RUANGAN</span><span>ORANG</span></div>
+        <div class="kpi-value" id="kpi-occ">-- / --</div>
+        <div class="kpi-sub" id="kpi-occ-sub">Kapasitas maksimal terdaftar</div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-label"><span>STATUS TERMAL</span><span>CLOSED-LOOP</span></div>
+        <div class="kpi-value" style="font-size:24px; padding-top:4px;" id="kpi-status">OPTIMAL</div>
+        <div class="kpi-sub" id="kpi-status-sub">Sistem kendali otomatis normal</div>
+      </div>
+    </section>
+
+    <section class="workspace-grid">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <h3>Denah Arsitektural &amp; Aktuator Spasial</h3>
+            <p id="twin-theme-caption">Simulasi spasial kondisi termal, okupansi meja sensor, dan aktuator AC otomatis</p>
+          </div>
+          <span class="scale-badge">SKALA 1:50</span>
+        </div>
+        <div class="twin-viewport" id="twin-viewport"></div>
+        <p class="twin-caption" id="twin-footer-note">
+          Saat suhu melebihi ambang batas, unit AC otomatis meniupkan pendinginan intensif (gelombang biru sejuk) hingga suhu kembali ideal.
+        </p>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <h3>Tren Suhu &amp; Kelembapan</h3>
+            <p>30 sampel terakhir secara real-time (update tiap 3 detik)</p>
+          </div>
+          <span class="scale-badge">LIVE STREAM</span>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="telemetry-chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel-card">
+      <div class="panel-header">
+        <div>
+          <h3>Ambang Batas Closed-Loop Auto-Cooling</h3>
+          <p>Histeresis otomatis untuk menyalakan dan menstabilkan pendingin ruangan berdasarkan sensor suhu</p>
+        </div>
+        <span class="scale-badge" id="th-room-badge">NODE-01</span>
+      </div>
+
+      <div class="threshold-card-body">
+        <div class="threshold-inputs">
+          <div class="form-group">
+            <label for="th-on">AC Nyala (&ge; °C)</label>
+            <input type="number" step="0.5" id="th-on" class="form-control" {% if user.role != 'admin' %}disabled{% endif %}>
+          </div>
+          <div class="form-group">
+            <label for="th-off">AC Standby (&le; °C)</label>
+            <input type="number" step="0.5" id="th-off" class="form-control" {% if user.role != 'admin' %}disabled{% endif %}>
+          </div>
+          <div class="form-group">
+            <label for="th-alert">Peringatan (&ge; °C)</label>
+            <input type="number" step="0.5" id="th-alert" class="form-control" {% if user.role != 'admin' %}disabled{% endif %}>
+          </div>
+        </div>
+
+        {% if user.role == 'admin' %}
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button type="button" class="btn btn-emerald" onclick="saveThresholds()">Simpan Ambang Batas</button>
+            <span id="th-save-msg" style="font-size:12.5px; font-weight:600; color:#059669;"></span>
+          </div>
+        {% else %}
+          <div style="font-size:12.5px; color:#718983;">
+            Parameter dikelola oleh Admin / Laboran.
+          </div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+
+  {% if user.role == 'admin' %}
+  <div class="modal-backdrop" id="room-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>Kelola &amp; Daftarkan Ruangan</h3>
+        <button type="button" class="modal-close" onclick="closeRoomModal()">&times;</button>
+      </div>
+
+      <form id="create-room-form" onsubmit="submitNewRoom(event)">
+        <div class="theme-preview-strip">
+          <div id="modal-emblem-preview"></div>
+          <div>
+            <strong style="font-size:13px; display:block;" id="modal-theme-label">Tema Otomatis</strong>
+            <small style="font-size:11.5px; color:#526963;">Ikon judul ruangan, ilustrasi gradasi header, dan denah arsitektural 2D menyesuaikan kategori ruangan.</small>
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="new-room-name">Nama Ruangan *</label>
+            <input type="text" id="new-room-name" class="form-control" placeholder="Misal: Lab IoT & Robotika" required oninput="updateModalPreview()">
+          </div>
+          <div class="form-group">
+            <label for="new-room-theme">Tema Ikon &amp; Denah</label>
+            <select id="new-room-theme" class="form-control" onchange="updateModalPreview()">
+              <option value="auto">Otomatis (Sesuaikan Nama)</option>
+              <option value="computer">Lab Komputer / Pemrograman</option>
+              <option value="network">Lab Jaringan / Telekomunikasi</option>
+              <option value="server">Ruang Server / Data Center</option>
+              <option value="iot">Lab IoT / Elektronika</option>
+              <option value="classroom">Ruang Kelas / Seminar</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-group">
+            <label for="new-room-location">Lokasi Gedung / Lantai</label>
+            <input type="text" id="new-room-location" class="form-control" value="Gedung FST, Lantai 2">
+          </div>
+          <div class="form-group">
+            <label for="new-room-capacity">Kapasitas Maksimal (Orang)</label>
+            <input type="number" id="new-room-capacity" class="form-control" value="30" min="1" max="500">
+          </div>
+        </div>
+
+        <div class="threshold-inputs" style="margin-bottom:14px;">
+          <div class="form-group">
+            <label for="new-temp-on">AC Nyala (&ge; °C)</label>
+            <input type="number" step="0.5" id="new-temp-on" class="form-control" value="26.5">
+          </div>
+          <div class="form-group">
+            <label for="new-temp-off">AC Standby (&le; °C)</label>
+            <input type="number" step="0.5" id="new-temp-off" class="form-control" value="23.5">
+          </div>
+          <div class="form-group">
+            <label for="new-temp-alert">Peringatan (&ge; °C)</label>
+            <input type="number" step="0.5" id="new-temp-alert" class="form-control" value="29.5">
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary-full">Simpan &amp; Aktifkan Simulasi Ruangan</button>
+      </form>
+
+      <div class="room-manage-list">
+        <div class="demo-label">Daftar Ruangan Terdaftar di SQLite:</div>
+        <div id="manage-rooms-container"></div>
+      </div>
+
+      <div class="hw-section-box">
+        <div class="demo-label">Integrasi Hardware ESP32 (Ruangan Aktif Saat Ini):</div>
+        <p style="font-size:12px; color:#526963; margin-bottom:8px;">
+          Gunakan kredensial node berikut saat beralih dari simulator dummy ke mikrokontroler sensor fisik:
+        </p>
+        <pre class="code-snippet" id="modal-hardware-snippet">Memuat kredensial node...</pre>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <script src="{{ url_for('static', filename='js/room-emblems.js') }}"></script>
+  <script>
+    const USER_ROLE = "{{ user.role }}";
+    let currentSlug = "{{ selected_slug }}";
+    let currentRoomData = null;
+    let thInputsInitialized = false;
+    let renderedHeaderArtKey = "";
+
+    document.getElementById("dash-brand-slot").innerHTML = renderBrandLogo("dark");
+
+    function updateSwitcherEmblem() {
+      const sel = document.getElementById("room-switcher");
+      const opt = sel.options[sel.selectedIndex];
+      if (!opt) return;
+      const rName = opt.getAttribute("data-name") || opt.text;
+      const rTheme = opt.getAttribute("data-theme") || "auto";
+      document.getElementById("switcher-emblem-slot").innerHTML = renderRoomEmblem(rName, rTheme, "room-emblem-box--topbar");
+    }
+
+    function switchRoom(slug) {
+      currentSlug = slug;
+      thInputsInitialized = false;
+      renderedHeaderArtKey = "";
+      updateSwitcherEmblem();
+      const url = new URL(window.location.href);
+      url.searchParams.set("room", slug);
+      window.history.replaceState({}, "", url);
+
+      document.getElementById("kiosk-nav-btn").href = `/kiosk?room=${encodeURIComponent(slug)}`;
+      const csvBtn = document.getElementById("btn-export-csv");
+      if (csvBtn) csvBtn.href = `/api/rooms/${encodeURIComponent(slug)}/export.csv`;
+
+      fetchTelemetry();
+    }
+
+    async function fetchTelemetry() {
+      if (!currentSlug) return;
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(currentSlug)}/telemetry`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const r = data.room;
+        const latest = data.latest;
+        currentRoomData = r;
+
+        const headerCard = document.getElementById("room-header-card");
+        if (headerCard) headerCard.setAttribute("data-status", latest.status || "OPTIMAL");
+
+        const artKey = `${r.slug}_${r.theme}_${latest.status}`;
+        if (renderedHeaderArtKey !== artKey) {
+          document.getElementById("header-gradient-art").outerHTML =
+            renderRoomGradientIllustration(r.name, r.theme, "dash_header", latest.status).replace(
+              '<div class="room-card-backdrop"',
+              '<div id="header-gradient-art" class="room-card-backdrop"'
+            );
+          renderedHeaderArtKey = artKey;
+        }
+
+        document.getElementById("header-room-emblem").innerHTML = renderRoomEmblem(r.name, r.theme);
+        document.getElementById("room-title").textContent = r.name;
+        document.getElementById("room-node-tag").textContent = r.node_id;
+        document.getElementById("th-room-badge").textContent = `${r.node_id} • ${r.name}`;
+        document.getElementById("room-location").textContent = r.location;
+        document.getElementById("room-last-update").textContent = (latest.recorded_at || "--:--:--").slice(-8);
+        document.getElementById("room-source").textContent = latest.source || "SIMULATOR";
+
+        const themeKey = detectRoomTheme(r.name, r.theme);
+        document.getElementById("twin-theme-caption").textContent =
+          `Simulasi spasial ${THEME_LABELS[themeKey]} • ${r.node_id}`;
+
+        const acPill = document.getElementById("room-ac-pill");
+        const acText = document.getElementById("room-ac-text");
+        const isCooling = Number(r.ac_state) === 1;
+        const isAuto = Number(r.auto_cooling) === 1;
+        if (isCooling) {
+          acPill.classList.add("active");
+          acText.textContent = `AC: COOLING (${isAuto ? 'AUTO' : 'MANUAL'})`;
+        } else {
+          acPill.classList.remove("active");
+          acText.textContent = `AC: STANDBY (${isAuto ? 'AUTO' : 'MANUAL'})`;
+        }
+
+        if (USER_ROLE === "admin") {
+          const btnAuto = document.getElementById("btn-auto-ac");
+          btnAuto.textContent = isAuto ? "Auto-AC: Aktif" : "Auto-AC: Manual";
+          btnAuto.classList.toggle("active", isAuto);
+
+          const acqOn = Number(r.acquisition_enabled) === 1;
+          document.getElementById("acq-toggle").checked = acqOn;
+          document.getElementById("acq-status-label").textContent = acqOn ? "Aktif (ON)" : "Dijeda (OFF)";
+
+          const hwBox = document.getElementById("modal-hardware-snippet");
+          if (hwBox) {
+            hwBox.textContent =
+`POST /api/sensor
+Headers: { "X-API-Key": "${r.api_key}", "Content-Type": "application/json" }
+Body:    { "room_slug": "${r.slug}", "temperature": ${Number(latest.temperature).toFixed(1)}, "humidity": ${Number(latest.humidity).toFixed(0)}, "occupancy": ${latest.occupancy} }`;
+          }
+        } else {
+          const vPill = document.getElementById("viewer-status-pill");
+          if (vPill) {
+            vPill.className = `status-pill ${latest.status}`;
+            vPill.textContent = latest.status;
+          }
+        }
+
+        document.getElementById("kpi-temp").textContent = `${Number(latest.temperature).toFixed(1)}°C`;
+        document.getElementById("kpi-temp-sub").textContent = `Target nyaman: ${r.temp_off}°C – ${r.temp_on}°C`;
+        document.getElementById("kpi-hum").textContent = `${Number(latest.humidity).toFixed(0)}%`;
+        document.getElementById("kpi-occ").textContent = `${latest.occupancy} / ${r.capacity}`;
+        const pct = Math.round((Number(latest.occupancy) / Math.max(1, Number(r.capacity))) * 100);
+        document.getElementById("kpi-occ-sub").textContent = `Utilisasi kapasitas: ${pct}%`;
+
+        const kpiStatus = document.getElementById("kpi-status");
+        kpiStatus.textContent = latest.status;
+        kpiStatus.style.color =
+          latest.status === "CRITICAL" ? "#dc2626" :
+          latest.status === "WARNING" ? "#d97706" :
+          latest.status === "COOLING" ? "#0284c7" : "#0f3d34";
+
+        document.getElementById("kpi-status-sub").textContent =
+          latest.status === "CRITICAL" ? "Suhu melewati batas peringatan!" :
+          latest.status === "COOLING" ? "Pendinginan aktif menurunkan suhu" :
+          latest.status === "PAUSED" ? "Akuisisi sensor dijeda sementara" : "Kondisi termal ruangan optimal";
+
+        if (!thInputsInitialized) {
+          document.getElementById("th-on").value = r.temp_on;
+          document.getElementById("th-off").value = r.temp_off;
+          document.getElementById("th-alert").value = r.temp_alert;
+          thInputsInitialized = true;
+        }
+
+        renderArchitecturalTwin(document.getElementById("twin-viewport"), r, latest);
+        renderTelemetryChart(document.getElementById("telemetry-chart"), data.history, r);
+      } catch (err) {
+        console.error("Telemetry fetch error:", err);
+      }
+    }
+
+    async function toggleAutoCooling() {
+      if (!currentRoomData) return;
+      const nextVal = Number(currentRoomData.auto_cooling) === 1 ? 0 : 1;
+      await fetch(`/api/rooms/${encodeURIComponent(currentSlug)}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_cooling: nextVal })
+      });
+      fetchTelemetry();
+    }
+
+    async function toggleAcquisition(checked) {
+      await fetch(`/api/rooms/${encodeURIComponent(currentSlug)}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acquisition_enabled: checked ? 1 : 0 })
+      });
+      fetchTelemetry();
+    }
+
+    async function triggerAlertTest() {
+      await fetch(`/api/rooms/${encodeURIComponent(currentSlug)}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trigger_alert: true })
+      });
+      fetchTelemetry();
+    }
+
+    async function saveThresholds() {
+      const payload = {
+        thresholds: {
+          temp_on: parseFloat(document.getElementById("th-on").value),
+          temp_off: parseFloat(document.getElementById("th-off").value),
+          temp_alert: parseFloat(document.getElementById("th-alert").value)
+        }
+      };
+      const res = await fetch(`/api/rooms/${encodeURIComponent(currentSlug)}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const msg = document.getElementById("th-save-msg");
+        msg.textContent = "Tersimpan!";
+        setTimeout(() => { msg.textContent = ""; }, 2500);
+        fetchTelemetry();
+      }
+    }
+
+    function updateModalPreview() {
+      const nameInput = document.getElementById("new-room-name");
+      const themeSelect = document.getElementById("new-room-theme");
+      if (!nameInput || !themeSelect) return;
+      const detected = detectRoomTheme(nameInput.value, themeSelect.value);
+      document.getElementById("modal-emblem-preview").innerHTML = renderRoomEmblem(nameInput.value, themeSelect.value);
+      document.getElementById("modal-theme-label").textContent = THEME_LABELS[detected];
+    }
+
+    async function openRoomModal() {
+      document.getElementById("room-modal").classList.add("open");
+      updateModalPreview();
+      await loadManageRoomsList();
+    }
+
+    function closeRoomModal() {
+      document.getElementById("room-modal").classList.remove("open");
+    }
+
+    async function loadManageRoomsList() {
+      const res = await fetch("/api/rooms");
+      const data = await res.json();
+      const container = document.getElementById("manage-rooms-container");
+      container.innerHTML = (data.rooms || []).map(r => `
+        <div class="room-manage-item">
+          <div style="display:flex; align-items:center; gap:10px;">
+            ${renderRoomEmblem(r.name, r.theme, "room-emblem-box--sm")}
+            <div>
+              <strong style="font-size:13px; display:block;">${r.name} <span style="font-family:monospace; font-size:11px; color:#526963;">(${r.node_id})</span></strong>
+              <small style="font-size:11.5px; color:#788f89;">${r.location} &bull; Kapasitas ${r.capacity}</small>
+            </div>
+          </div>
+          <button type="button" class="btn btn-alert-soft" style="padding:5px 10px; font-size:11.5px;" onclick="deleteRoom('${r.slug}', '${r.name}')">
+            Hapus
+          </button>
+        </div>
+      `).join("");
+    }
+
+    async function submitNewRoom(e) {
+      e.preventDefault();
+      const payload = {
+        name: document.getElementById("new-room-name").value,
+        theme: document.getElementById("new-room-theme").value,
+        location: document.getElementById("new-room-location").value,
+        capacity: parseInt(document.getElementById("new-room-capacity").value, 10),
+        temp_on: parseFloat(document.getElementById("new-temp-on").value),
+        temp_off: parseFloat(document.getElementById("new-temp-off").value),
+        temp_alert: parseFloat(document.getElementById("new-temp-alert").value)
+      };
+
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        window.location.href = `/dashboard?room=${encodeURIComponent(created.slug)}`;
+      } else {
+        const err = await res.json();
+        alert(err.error || "Gagal menambahkan ruangan.");
+      }
+    }
+
+    async function deleteRoom(slug, name) {
+      if (!confirm(`Hapus ruangan "${name}" beserta riwayat sensornya dari SQLite?`)) return;
+      const res = await fetch(`/api/rooms/${encodeURIComponent(slug)}`, { method: "DELETE" });
+      if (res.ok) {
+        window.location.href = "/dashboard";
+      } else {
+        const err = await res.json();
+        alert(err.error || "Tidak dapat menghapus ruangan.");
+      }
+    }
+
+    updateSwitcherEmblem();
+    fetchTelemetry();
+    setInterval(fetchTelemetry, 3000);
+    window.addEventListener("resize", fetchTelemetry);
+  </script>
+</body>
+</html>
